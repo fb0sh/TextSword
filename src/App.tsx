@@ -53,6 +53,19 @@ function ReplaceRulesList({
   );
 }
 
+interface StoreButtonBoxProps {
+  onImport: () => void;
+  onExport: () => void;
+}
+
+function StoreButtonBox({ onImport, onExport }: StoreButtonBoxProps) {
+  return (
+    <ButtonGroup>
+      <Button onClick={onImport}>导入</Button>
+      <Button onClick={onExport} variant="primary">导出</Button>
+    </ButtonGroup>
+  );
+}
 export function FunctionButtonsBox({
   onFillBack,
   onUndoFill,
@@ -234,6 +247,61 @@ function App() {
   const onRemoveRule = (index: number) => {
     setRules((prev) => prev.filter((_, i) => i !== index));
   };
+  const onImport = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".*"; // 可按需修改
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        try {
+          // 读取为 UTF-8 字符串
+          const text = reader.result as string;
+
+          // 检查是否为 UTF-8（部分浏览器默认支持）
+          // 简单判断是否包含非法字符，可更复杂检测
+          if (/[^\u0000-\uFFFF]/.test(text)) {
+            alert("文件可能不是 UTF-8 编码");
+            return;
+          }
+
+
+          setInputValue(text);
+        } catch (e) {
+          console.error("解析文件失败", e);
+          alert("文件解析失败");
+        }
+      };
+
+      reader.onerror = () => {
+        alert("读取文件失败");
+      };
+
+      reader.readAsText(file, "utf-8");
+    };
+
+    input.click();
+  };
+
+  const onExport = () => {
+    const blob = new Blob([outputValue], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    a.download = `TextSword_${dateStr}.txt`;
+    a.click();
+
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div
       style={{
@@ -260,7 +328,7 @@ function App() {
 
 
       {/* 下半部分，按钮组 */}
-      <div style={{ flex: "0 0 auto", width: "100%", padding: "0 1rem 1rem 1rem", boxSizing: 'border-box' }}>
+      <div style={{ flex: "0 0 auto", width: "100%", padding: "0 1rem 1rem 1rem", boxSizing: 'border-box', display: "flex", justifyContent: "space-between" }}>
         <FunctionButtonsBox
           onFillBack={onFillBack}
           onUndoFill={onUndoFill}
@@ -270,6 +338,7 @@ function App() {
           onAddRule={onAddRule}
           onReplace={onReplace}
         />
+        <StoreButtonBox onImport={onImport} onExport={onExport} />
       </div>
       <ReplaceRulesList
         style={{ padding: "0 1rem 0 1rem" }}
