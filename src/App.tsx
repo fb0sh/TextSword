@@ -5,7 +5,6 @@ import { FormControl, Textarea } from '@primer/react';
 interface ReplaceRule {
   find: string;
   replace: string;
-
 }
 
 function ReplaceRulesList({
@@ -26,7 +25,6 @@ function ReplaceRulesList({
           key={i}
           style={{ display: "flex", alignItems: "center", marginBottom: 8, gap: 8, marginTop: 8 }}
         >
-
           <TextInput
             value={rule.find}
             onChange={(e) =>
@@ -56,16 +54,21 @@ function ReplaceRulesList({
 interface StoreButtonBoxProps {
   onImport: () => void;
   onExport: () => void;
+  onClear: () => void;
+  onClearRules: () => void;
 }
 
-function StoreButtonBox({ onImport, onExport }: StoreButtonBoxProps) {
+function StoreButtonBox({ onImport, onExport, onClear, onClearRules }: StoreButtonBoxProps) {
   return (
     <ButtonGroup>
+      <Button onClick={onClear} variant="danger">清空</Button>
+      <Button onClick={onClearRules} variant="danger">清空规则</Button>
       <Button onClick={onImport}>导入</Button>
       <Button onClick={onExport} variant="primary">导出</Button>
     </ButtonGroup>
   );
 }
+
 export function FunctionButtonsBox({
   onFillBack,
   onUndoFill,
@@ -164,17 +167,34 @@ export function TextAreaBox({
 }
 
 function App() {
-  const [inputValue, setInputValue] = React.useState("");
-  const [outputValue, setOutputValue] = React.useState("");
+  const [inputValue, setInputValue] = React.useState(() => localStorage.getItem("ts_input") || "");
+  const [outputValue, setOutputValue] = React.useState(() => localStorage.getItem("ts_output") || "");
+  const [rules, setRules] = React.useState<ReplaceRule[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ts_rules") || "[]") || [{ find: "", replace: "" }];
+    } catch {
+      return [{ find: "", replace: "" }];
+    }
+  });
   const [backupInputValue, setBackupInputValue] = React.useState<string | null>(null);
 
-  // 回填：输出内容填回输入，保存备份
+  React.useEffect(() => {
+    localStorage.setItem("ts_input", inputValue);
+  }, [inputValue]);
+
+  React.useEffect(() => {
+    localStorage.setItem("ts_output", outputValue);
+  }, [outputValue]);
+
+  React.useEffect(() => {
+    localStorage.setItem("ts_rules", JSON.stringify(rules));
+  }, [rules]);
+
   const onFillBack = () => {
     setBackupInputValue(inputValue);
     setInputValue(outputValue);
   };
 
-  // 撤销：恢复备份内容
   const onUndoFill = () => {
     if (backupInputValue !== null) {
       setInputValue(backupInputValue);
@@ -182,58 +202,45 @@ function App() {
     }
   };
 
-  // 去重：对输出内容去重（按行）
   const onDistinct = () => {
     const lines = outputValue.split('\n');
     const uniqueLines = Array.from(new Set(lines.map(l => l.trim()))).filter(l => l.length > 0);
     setOutputValue(uniqueLines.join('\n'));
   };
 
-  // 升序排序（按行）
   const onAsc = () => {
     const lines = outputValue.split('\n');
     const sorted = lines.map(l => l.trim()).filter(l => l.length > 0).sort();
     setOutputValue(sorted.join('\n'));
   };
 
-  // 降序排序（按行）
   const onDesc = () => {
     const lines = outputValue.split('\n');
     const sorted = lines.map(l => l.trim()).filter(l => l.length > 0).sort().reverse();
     setOutputValue(sorted.join('\n'));
   };
-  const [rules, setRules] = React.useState<ReplaceRule[]>([
-    { find: "", replace: "" },
-  ]);
-
 
   const onAddRule = () => {
     setRules((prev) => [...prev, { find: "", replace: "" }]);
   };
 
-
-  // 替换（简单示例：将输入文本复制到输出区，模拟“替换”效果）
-  const onReplace = () => {
-    function parseEscaped(str: string) {
-      try {
-        // 把字符串用双引号包裹，再用 JSON.parse 解析转义字符
-        return JSON.parse(`"${str.replace(/"/g, '\\"')}"`);
-      } catch {
-        return str;
-      }
+  const parseEscaped = (str: string) => {
+    try {
+      return JSON.parse(`"${str.replace(/"/g, '\\"')}"`);
+    } catch {
+      return str;
     }
+  };
 
-
+  const onReplace = () => {
     let text = inputValue;
     for (const rule of rules) {
-      if (!rule.find) continue; // 空查找内容跳过
+      if (!rule.find) continue;
       const findStr = parseEscaped(rule.find);
       const replaceStr = parseEscaped(rule.replace);
-      // 简单字符串替换，全部替换
       text = text.split(findStr).join(replaceStr);
     }
     setOutputValue(text);
-
   };
 
   const onChangeRule = (index: number, newRule: ReplaceRule) => {
@@ -247,59 +254,50 @@ function App() {
   const onRemoveRule = (index: number) => {
     setRules((prev) => prev.filter((_, i) => i !== index));
   };
+
   const onImport = () => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = ".*"; // 可按需修改
+    input.accept = ".*";
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
-
       reader.onload = () => {
-        try {
-          // 读取为 UTF-8 字符串
-          const text = reader.result as string;
-
-          // 检查是否为 UTF-8（部分浏览器默认支持）
-          // 简单判断是否包含非法字符，可更复杂检测
-          if (/[^\u0000-\uFFFF]/.test(text)) {
-            alert("文件可能不是 UTF-8 编码");
-            return;
-          }
-
-
-          setInputValue(text);
-        } catch (e) {
-          console.error("解析文件失败", e);
-          alert("文件解析失败");
+        const text = reader.result as string;
+        if (/[^\u0000-\uFFFF]/.test(text)) {
+          alert("文件可能不是 UTF-8 编码");
+          return;
         }
+        setInputValue(text);
       };
-
-      reader.onerror = () => {
-        alert("读取文件失败");
-      };
-
+      reader.onerror = () => alert("读取文件失败");
       reader.readAsText(file, "utf-8");
     };
-
     input.click();
   };
 
   const onExport = () => {
     const blob = new Blob([outputValue], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
     const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const a = document.createElement("a");
+    a.href = url;
     a.download = `TextSword_${dateStr}.txt`;
     a.click();
-
     URL.revokeObjectURL(url);
+  };
+
+  const onClear = () => {
+    setInputValue("");
+    setOutputValue("");
+  };
+
+  const onClearRules = () => {
+    setRules([{ find: "", replace: "" }]);
   };
 
   return (
@@ -315,7 +313,6 @@ function App() {
         width: "100vw",
       }}
     >
-      {/* 上半部分，高度 70% */}
       <div style={{ flex: "0 0 70%", width: "100%", padding: "1rem 1rem 0 1rem", boxSizing: 'border-box' }}>
         <TextAreaBox
           style={{ height: "100%" }}
@@ -325,9 +322,6 @@ function App() {
           onOutputChange={setOutputValue}
         />
       </div>
-
-
-      {/* 下半部分，按钮组 */}
       <div style={{ flex: "0 0 auto", width: "100%", padding: "0 1rem 1rem 1rem", boxSizing: 'border-box', display: "flex", justifyContent: "space-between" }}>
         <FunctionButtonsBox
           onFillBack={onFillBack}
@@ -338,7 +332,7 @@ function App() {
           onAddRule={onAddRule}
           onReplace={onReplace}
         />
-        <StoreButtonBox onImport={onImport} onExport={onExport} />
+        <StoreButtonBox onImport={onImport} onExport={onExport} onClear={onClear} onClearRules={onClearRules} />
       </div>
       <ReplaceRulesList
         style={{ padding: "0 1rem 0 1rem" }}
