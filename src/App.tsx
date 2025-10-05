@@ -232,16 +232,36 @@ function App() {
     }
   };
 
-  const onReplace = () => {
-    let text = inputValue;
-    for (const rule of rules) {
-      if (!rule.find) continue;
-      const findStr = parseEscaped(rule.find);
-      const replaceStr = parseEscaped(rule.replace);
-      text = text.split(findStr).join(replaceStr);
+const onReplace = () => {
+  let text = inputValue;
+
+  for (const rule of rules) {
+    if (!rule.find) continue;
+
+    try {
+      // 解析正则规则
+      // 允许用户写出 /pattern/flags 这种形式
+      let pattern: RegExp;
+      if (rule.find.startsWith('/') && rule.find.lastIndexOf('/') > 0) {
+        // 提取出 /xxx/flags
+        const lastSlash = rule.find.lastIndexOf('/');
+        const body = rule.find.slice(1, lastSlash);
+        const flags = rule.find.slice(lastSlash + 1);
+        pattern = new RegExp(body, flags);
+      } else {
+        // 默认按字符串转义处理
+        pattern = new RegExp(rule.find, 'g');
+      }
+
+      text = text.replace(pattern, rule.replace);
+    } catch (err) {
+      console.error(`Invalid regex: ${rule.find}`, err);
+      alert(`无效的正则: ${rule.find}`);
     }
-    setOutputValue(text);
-  };
+  }
+
+  setOutputValue(text);
+};
 
   const onChangeRule = (index: number, newRule: ReplaceRule) => {
     setRules((prev) => {
