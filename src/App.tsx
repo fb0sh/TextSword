@@ -239,21 +239,26 @@ const onReplace = () => {
     if (!rule.find) continue;
 
     try {
-      // 解析正则规则
-      // 允许用户写出 /pattern/flags 这种形式
       let pattern: RegExp;
+
+      // 解析查找规则
       if (rule.find.startsWith('/') && rule.find.lastIndexOf('/') > 0) {
-        // 提取出 /xxx/flags
+        // 正则格式 /xxx/flags
         const lastSlash = rule.find.lastIndexOf('/');
         const body = rule.find.slice(1, lastSlash);
         const flags = rule.find.slice(lastSlash + 1);
         pattern = new RegExp(body, flags);
       } else {
-        // 默认按字符串转义处理
-        pattern = new RegExp(rule.find, 'g');
+        // 普通文本 → 转义成安全正则
+        const escapedFind = parseEscaped(rule.find)
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        pattern = new RegExp(escapedFind, 'g');
       }
 
-      text = text.replace(pattern, rule.replace);
+      // 解析替换内容里的 \n \t 等
+      const replacement = parseEscaped(rule.replace);
+
+      text = text.replace(pattern, replacement);
     } catch (err) {
       console.error(`Invalid regex: ${rule.find}`, err);
       alert(`无效的正则: ${rule.find}`);
